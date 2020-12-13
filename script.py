@@ -141,7 +141,7 @@ def process_preexisting_files(s3_client, bucket, preexisting):
             move(file_path, error_dir)
 
 def keep_running():
-    """Note: hangs until Ctrl-C
+    """Note: Loops until Ctrl-C
     """
     try:
         s = 0
