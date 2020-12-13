@@ -125,6 +125,7 @@ class S3EventHandler(FileSystemEventHandler):
 def get_preexisting_files(dir):
     preexisting = []
     for root, dirs, files in os.walk(dir):
+        # Ignore hidden files
         files = [f for f in files if not f[0] == '.']
         for file in files:
             preexisting.append(os.path.join(root, file))
