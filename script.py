@@ -72,16 +72,19 @@ def move(src_path, dir):
     "{dir}/YYYY-MM-DD/{src_path's baseroot} (i){src ext}" instead to avoid collisions. 
     (Where i is a recursive increment).
     """
-    today_subdir = ensure_today_subdir(dir)
-    dst_path = os.path.join(today_subdir, ntpath.basename(src_path))
-    # Avoid collisions
-    i = 0
-    while os.path.isfile(dst_path):
-        i += 1
-        root_ext = os.path.splitext(dst_path)
-        dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
-    # Finally move file
-    shutil.move(src_path, dst_path)
+    try:
+        today_subdir = ensure_today_subdir(dir)
+        dst_path = os.path.join(today_subdir, ntpath.basename(src_path))
+        # Avoid collisions
+        i = 0
+        while os.path.isfile(dst_path):
+            i += 1
+            root_ext = os.path.splitext(dst_path)
+            dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
+        # Finally move file
+        shutil.move(src_path, dst_path)
+    except:
+        pass
 
 class ProgressPercentage(object):
 
