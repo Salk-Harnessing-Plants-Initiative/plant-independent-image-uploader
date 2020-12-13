@@ -83,7 +83,8 @@ def move(src_path, dir):
             dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
         # Finally move file
         shutil.move(src_path, dst_path)
-    except:
+    except Exception as e:
+        logging.error(e)
         pass
 
 class ProgressPercentage(object):
