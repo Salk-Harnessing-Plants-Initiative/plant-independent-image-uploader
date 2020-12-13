@@ -1,0 +1,6 @@
+s3:
+	access_key: ~
+	secret_key: ~
+	bucket: ~
+logging:
+	api_key: ~ 
