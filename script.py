@@ -140,7 +140,7 @@ def process_preexisting_files(s3_client, bucket, preexisting):
         else:
             move(file_path, error_dir)
 
-def keep_running():
+def keep_running(send_heartbeat, heartbeat_seconds):
     """Note: Loops until Ctrl-C
     """
     try:
@@ -148,7 +148,7 @@ def keep_running():
         while True:
             time.sleep(1)
             s += 1
-            if config["send_heartbeat"] and s >= config["heartbeat_seconds"]:
+            if send_heartbeat and s >= heartbeat_seconds:
                 logging.info("HEARTBEAT")
                 s = 0
     except KeyboardInterrupt:
@@ -188,7 +188,7 @@ def main():
     process_preexisting_files(s3_client, bucket, preexisting)
 
     # Keep the main thread running so watchdog handler can be still be called
-    keep_running()
+    keep_running(config["send_heartbeat"], config["heartbeat_seconds"])
 
 if __name__ == "__main__":
     main()
