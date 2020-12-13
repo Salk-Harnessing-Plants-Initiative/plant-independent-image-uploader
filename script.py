@@ -166,8 +166,8 @@ def main():
 		while True:
 			time.sleep(1)
 			s += 1
-			if config["log_active"] and s >= config["log_active_seconds"]:
-				logging.info("ACTIVE")
+			if config["send_heartbeat"] and s >= config["heartbeat_seconds"]:
+				logging.info("HEARTBEAT")
 				s = 0
 	except KeyboardInterrupt:
 		logging.info("KeyboardInterrupt: shutting down script.py...")
