@@ -51,8 +51,8 @@ def upload_file(s3_client, file_name, bucket, object_name):
 
 def generate_bucket_key(path):
     """Keep things nice and random to prevent collisions
-    "/Users/russell/Documents/taco_tuesday.jpg" becomes 
-    "taco_tuesday-b94b0793-6c74-44a9-94e0-00420711130d.jpg"
+    "/Users/russell/Documents/taco_tuesday.jpg" becomes "taco_tuesday-b94b0793-6c74-44a9-94e0-00420711130d.jpg"
+    Note: We still like to keep the basename because some files' only timestamp is in the filename
     """
     root_ext = os.path.splitext(ntpath.basename(path));
     return root_ext[0] + "-" + str(uuid.uuid4()) + root_ext[1];
