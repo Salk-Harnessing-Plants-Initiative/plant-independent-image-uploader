@@ -55,18 +55,16 @@ def creation_date(file_path):
 
 def get_file_created(file_path):
     """Gets the file's creation timestamp from the filesystem and returns it as a string
-    Returns an empty string if somehow failure
+    Errors upon failure
     """
-    try: 
-        return datetime.datetime.fromtimestamp(creation_date(file_path)).strftime('%Y-%m-%d %H:%M:%SZ')
-    except:
-        return ""
+    return datetime.datetime.fromtimestamp(creation_date(file_path)).strftime('%Y-%m-%d %H:%M:%SZ')
 
 def get_metadata(file_path):
     metadata = {"Metadata": {}}
-    creation_time_in_filesystem = get_file_created(file_name)
-    if creation_time_in_filesystem:
-        metadata["Metadata"]["file_created"] = creation_time_in_filesystem
+    try:
+        metadata["Metadata"]["file_created"] = get_file_created(file_name)
+    except:
+        pass
     return metadata
 
 def upload_file(s3_client, file_name, bucket, object_name):
