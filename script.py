@@ -89,6 +89,8 @@ def move(src_path, dir):
         pass
 
 class ProgressPercentage(object):
+    """Callback used for boto3 to sporadically report the upload progress for a large file
+    """
 
     def __init__(self, filename):
         self._filename = filename
@@ -104,6 +106,8 @@ class ProgressPercentage(object):
             .format(self._filename, self._seen_so_far, self._size, percentage))
 
 class S3EventHandler(FileSystemEventHandler):
+    """Handler for what to do if watchdog detects a filesystem change
+    """
 
     def __init__(self, s3_client, s3_bucket, unprocessed_dir, done_dir, error_dir):
         self.s3_client = s3_client
@@ -113,7 +117,8 @@ class S3EventHandler(FileSystemEventHandler):
         self.error_dir = error_dir
 
     def on_created(self, event):
-        if not event.is_directory:
+        is_file = not event.is_directory
+        if is_file:
             file_path = event.src_path
             object_name = generate_bucket_key(file_path)
             success = upload_file(self.s3_client, file_path, self.s3_bucket, object_name,
@@ -124,6 +129,9 @@ class S3EventHandler(FileSystemEventHandler):
                 move(file_path, self.error_dir)
 
 def get_preexisting_files(dir):
+    """Recursively get all filenames in a directory
+    Returns them as a list of paths
+    """
     preexisting = []
     for root, dirs, files in os.walk(dir):
         # Ignore hidden files
@@ -133,6 +141,8 @@ def get_preexisting_files(dir):
     return preexisting
 
 def process_preexisting_files(s3_client, bucket, preexisting):
+    """Helper for straightforward uploading a list of file paths
+    """
     for file_path in preexisting:
         object_name = generate_bucket_key(file_path)
         success = upload_file(s3_client, file_path, bucket, object_name,
@@ -144,6 +154,8 @@ def process_preexisting_files(s3_client, bucket, preexisting):
 
 def keep_running(send_heartbeat, heartbeat_seconds):
     """Note: Loops until Ctrl-C
+    If send_heartbeat is true, logs a heartbeat approximately every
+    heartbeat_seconds
     """
     try:
         s = 0
