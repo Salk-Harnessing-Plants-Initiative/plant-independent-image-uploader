@@ -1,6 +1,18 @@
+unprocessed_dir: 
+done_dir: 
+error_dir: 
+send_heartbeat: true
+heartbeat_seconds: 15
 s3:
-	access_key: ~
-	secret_key: ~
-	bucket: ~
-logging:
-	api_key: ~ 
+  access_key: ~
+  secret_key: ~
+  bucket: ~
+  # must include '/' at the end for directory
+  directory: ~ 
+cloudwatch:
+  access_key: ~
+  secret_key: ~
+  region_name: ~
+  log_group: ~
+  stream_name: ~
+  send_interval: 16

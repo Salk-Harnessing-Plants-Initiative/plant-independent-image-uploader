@@ -57,12 +57,12 @@ def get_file_created(file_path):
     """Gets the file's creation timestamp from the filesystem and returns it as a string
     Errors upon failure
     """
-    return datetime.datetime.fromtimestamp(creation_date(file_path)).strftime('%Y-%m-%d %H:%M:%SZ')
+    return datetime.fromtimestamp(creation_date(file_path)).astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')
 
 def get_metadata(file_path):
     metadata = {"Metadata": {}}
     try:
-        metadata["Metadata"]["file_created"] = get_file_created(file_name)
+        metadata["Metadata"]["file_created"] = get_file_created(file_path)
     except:
         pass
     return metadata
@@ -77,20 +77,20 @@ def upload_file(s3_client, file_name, bucket, object_name):
     """
     try:
         response = s3_client.upload_file(file_name, bucket, object_name, 
-            ExtraArgs=get_metadata(file_name))
+            Callback=ProgressPercentage(file_name), ExtraArgs=get_metadata(file_name))
         logging.info(response)
     except ClientError as e:
         logging.error(e)
         return False
     return True
 
-def generate_bucket_key(path):
+def generate_bucket_key(file_path, s3_directory):
     """Keep things nice and random to prevent collisions
-    "/Users/russell/Documents/taco_tuesday.jpg" becomes "taco_tuesday-b94b0793-6c74-44a9-94e0-00420711130d.jpg"
+    "/Users/russell/Documents/taco_tuesday.jpg" becomes "raw/taco_tuesday-b94b0793-6c74-44a9-94e0-00420711130d.jpg"
     Note: We still like to keep the basename because some files' only timestamp is in the filename
     """
-    root_ext = os.path.splitext(ntpath.basename(path));
-    return root_ext[0] + "-" + str(uuid.uuid4()) + root_ext[1];
+    root_ext = os.path.splitext(ntpath.basename(file_path));
+    return s3_directory + root_ext[0] + "-" + str(uuid.uuid4()) + root_ext[1];
 
 def ensure_today_subdir(dir):
     """If dir doesn't have a subdirectory named today's date in "YYYY-MM-DD" format,
@@ -156,8 +156,7 @@ class S3EventHandler(FileSystemEventHandler):
         if is_file:
             file_path = event.src_path
             object_name = generate_bucket_key(file_path)
-            success = upload_file(self.s3_client, file_path, self.s3_bucket, object_name,
-                Callback=ProgressPercentage(file_path))
+            success = upload_file(self.s3_client, file_path, self.s3_bucket, object_name)
             if success:
                 move(file_path, self.done_dir)
             else:
@@ -175,19 +174,18 @@ def get_preexisting_files(dir):
             preexisting.append(os.path.join(root, file))
     return preexisting
 
-def process_preexisting_files(s3_client, bucket, preexisting):
+def process_preexisting_files(s3_client, bucket, preexisting, done_dir, error_dir):
     """Helper for straightforward uploading a list of file paths
     """
     for file_path in preexisting:
         object_name = generate_bucket_key(file_path)
-        success = upload_file(s3_client, file_path, bucket, object_name,
-            Callback=ProgressPercentage(file_path))
+        success = upload_file(s3_client, file_path, bucket, object_name)
         if success:
             move(file_path, done_dir)
         else:
             move(file_path, error_dir)
 
-def keep_running(send_heartbeat, heartbeat_seconds):
+def keep_running(observer, send_heartbeat, heartbeat_seconds):
     """Note: Loops until Ctrl-C
     If send_heartbeat is true, logs a heartbeat approximately every
     heartbeat_seconds
@@ -222,22 +220,30 @@ def main():
 
     # Setup remote logging
     logger = logging.getLogger(__name__)
-    logger.addHandler(watchtower.CloudWatchLogHandler(cloudwatch))
+    watchtower_handler = watchtower.CloudWatchLogHandler(
+        log_group=config["cloudwatch"]["log_group"],
+        stream_name=config["cloudwatch"]["stream_name"],
+        send_interval=config["heartbeat_seconds"],
+        boto3_session=cloudwatch,
+        create_log_group=False
+    )
+    logger.addHandler(watchtower_handler)
+    print(watchtower_handler)
 
     # Check for any preexisting files in the "unprocessed" folder
     preexisting = get_preexisting_files(unprocessed_dir)
 
     # Setup the watchdog handler for new files that are added while the script is running
-    event_hander = S3EventHandler(s3_client, bucket, unprocessed_dir, done_dir, error_dir)
+    event_handler = S3EventHandler(s3_client, bucket, unprocessed_dir, done_dir, error_dir)
     observer = Observer()
     observer.schedule(event_handler, unprocessed_dir, recursive=True)
     observer.start()
 
     # Upload & process any preexisting files
-    process_preexisting_files(s3_client, bucket, preexisting)
+    process_preexisting_files(s3_client, bucket, preexisting, done_dir, error_dir)
 
     # Keep the main thread running so watchdog handler can be still be called
-    keep_running(config["send_heartbeat"], config["heartbeat_seconds"])
+    keep_running(observer, config["send_heartbeat"], config["heartbeat_seconds"])
 
 if __name__ == "__main__":
     main()
