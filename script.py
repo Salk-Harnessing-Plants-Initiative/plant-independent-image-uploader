@@ -24,6 +24,9 @@ import uuid
 import os
 import shutil
 import ntpath
+# For getting file creation timestamp
+import platform
+import pathlib
 # For detecting new files
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
@@ -32,6 +35,39 @@ import boto3
 # For logging remotely to AWS CloudWatch
 from boto3.session import Session
 import watchtower
+
+def creation_date(file_path):
+    """
+    Try to get the date that a file was created, falling back to when it was
+    last modified if that isn't possible.
+    See http://stackoverflow.com/a/39501288/1709587 for explanation.
+    """
+    if platform.system() == 'Windows':
+        return os.path.getctime(file_path)
+    else:
+        stat = os.stat(file_path)
+        try:
+            return stat.st_birthtime
+        except AttributeError:
+            # We're probably on Linux. No easy way to get creation dates here,
+            # so we'll settle for when its content was last modified.
+            return stat.st_mtime
+
+def get_file_created(file_path):
+    """Gets the file's creation timestamp from the filesystem and returns it as a string
+    Returns an empty string if somehow failure
+    """
+    try: 
+        return datetime.datetime.fromtimestamp(creation_date(file_path)).strftime('%Y-%m-%d %H:%M:%SZ')
+    except:
+        return ""
+
+def get_metadata(file_path):
+    metadata = {"Metadata": {}}
+    creation_time_in_filesystem = get_file_created(file_name)
+    if creation_time_in_filesystem:
+        metadata["Metadata"]["file_created"] = creation_time_in_filesystem
+    return metadata
 
 def upload_file(s3_client, file_name, bucket, object_name):
     """Upload a file to an S3 bucket
@@ -42,7 +78,8 @@ def upload_file(s3_client, file_name, bucket, object_name):
     :return: True if file was uploaded, else False
     """
     try:
-        response = s3_client.upload_file(file_name, bucket, object_name)
+        response = s3_client.upload_file(file_name, bucket, object_name, 
+            ExtraArgs=get_metadata(file_name))
         logging.info(response)
     except ClientError as e:
         logging.error(e)
@@ -206,6 +243,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# TODO: Include file creation date in metadata if possible
