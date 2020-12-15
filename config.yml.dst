@@ -8,7 +8,7 @@ s3:
   secret_key: ~
   bucket: ~
   # must include '/' at the end for directory
-  directory: ~ 
+  bucket_dir: ~ 
 cloudwatch:
   access_key: ~
   secret_key: ~

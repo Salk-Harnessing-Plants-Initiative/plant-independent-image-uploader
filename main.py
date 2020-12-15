@@ -123,6 +123,46 @@ def move(src_path, dir):
         logging.error(e)
         pass
 
+def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir):
+    """Helper
+    """
+    object_name = generate_bucket_key(file_path, bucket_dir)
+    success = upload_file(s3_client, file_path, bucket, object_name)
+    if success:
+        move(file_path, done_dir)
+    else:
+        move(file_path, error_dir)
+
+def get_preexisting_files(dir):
+    """Recursively get all filenames in a directory
+    Returns them as a list of paths
+    """
+    preexisting = []
+    for root, dirs, files in os.walk(dir):
+        # Ignore hidden files
+        files = [f for f in files if not f[0] == '.']
+        for file in files:
+            preexisting.append(os.path.join(root, file))
+    return sorted(preexisting)
+
+def keep_running(observer, send_heartbeat, heartbeat_seconds):
+    """Note: Loops until Ctrl-C
+    If send_heartbeat is true, logs a heartbeat approximately every
+    heartbeat_seconds
+    """
+    try:
+        s = 0
+        while True:
+            time.sleep(1)
+            s += 1
+            if send_heartbeat and s >= heartbeat_seconds:
+                logging.info("HEARTBEAT")
+                s = 0
+    except KeyboardInterrupt:
+        logging.info("KeyboardInterrupt: shutting down script.py...")
+        observer.stop()
+        observer.join()
+
 class ProgressPercentage(object):
     """Callback used for boto3 to sporadically report the upload progress for a large file
     """
@@ -144,9 +184,10 @@ class S3EventHandler(FileSystemEventHandler):
     """Handler for what to do if watchdog detects a filesystem change
     """
 
-    def __init__(self, s3_client, s3_bucket, unprocessed_dir, done_dir, error_dir):
+    def __init__(self, s3_client, s3_bucket, s3_bucket_dir, unprocessed_dir, done_dir, error_dir):
         self.s3_client = s3_client
         self.s3_bucket = s3_bucket
+        self.s3_bucket_dir = s3_bucket_dir
         self.unprocessed_dir = unprocessed_dir
         self.done_dir = done_dir
         self.error_dir = error_dir
@@ -154,54 +195,7 @@ class S3EventHandler(FileSystemEventHandler):
     def on_created(self, event):
         is_file = not event.is_directory
         if is_file:
-            file_path = event.src_path
-            object_name = generate_bucket_key(file_path)
-            success = upload_file(self.s3_client, file_path, self.s3_bucket, object_name)
-            if success:
-                move(file_path, self.done_dir)
-            else:
-                move(file_path, self.error_dir)
-
-def get_preexisting_files(dir):
-    """Recursively get all filenames in a directory
-    Returns them as a list of paths
-    """
-    preexisting = []
-    for root, dirs, files in os.walk(dir):
-        # Ignore hidden files
-        files = [f for f in files if not f[0] == '.']
-        for file in files:
-            preexisting.append(os.path.join(root, file))
-    return preexisting
-
-def process_preexisting_files(s3_client, bucket, preexisting, done_dir, error_dir):
-    """Helper for straightforward uploading a list of file paths
-    """
-    for file_path in preexisting:
-        object_name = generate_bucket_key(file_path)
-        success = upload_file(s3_client, file_path, bucket, object_name)
-        if success:
-            move(file_path, done_dir)
-        else:
-            move(file_path, error_dir)
-
-def keep_running(observer, send_heartbeat, heartbeat_seconds):
-    """Note: Loops until Ctrl-C
-    If send_heartbeat is true, logs a heartbeat approximately every
-    heartbeat_seconds
-    """
-    try:
-        s = 0
-        while True:
-            time.sleep(1)
-            s += 1
-            if send_heartbeat and s >= heartbeat_seconds:
-                logging.info("HEARTBEAT")
-                s = 0
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt: shutting down script.py...")
-        observer.stop()
-        observer.join()
+            process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, self.done_dir, self.error_dir)
 
 def main():
     logging.basicConfig(level=logging.INFO,
@@ -214,6 +208,7 @@ def main():
                         aws_secret_access_key=config["cloudwatch"]["secret_key"],
                         region_name=config["cloudwatch"]["region_name"])
     bucket = config["s3"]["bucket"]
+    bucket_dir = config["s3"]["bucket_dir"]
     unprocessed_dir = config["unprocessed_dir"]
     done_dir = config["done_dir"]
     error_dir = config["error_dir"]
@@ -234,13 +229,15 @@ def main():
     preexisting = get_preexisting_files(unprocessed_dir)
 
     # Setup the watchdog handler for new files that are added while the script is running
-    event_handler = S3EventHandler(s3_client, bucket, unprocessed_dir, done_dir, error_dir)
+    event_handler = S3EventHandler(s3_client, bucket, bucket_dir, unprocessed_dir, done_dir, error_dir)
     observer = Observer()
     observer.schedule(event_handler, unprocessed_dir, recursive=True)
     observer.start()
 
     # Upload & process any preexisting files
-    process_preexisting_files(s3_client, bucket, preexisting, done_dir, error_dir)
+    if preexisting:
+        for file_path in preexisting:
+            process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir)
 
     # Keep the main thread running so watchdog handler can be still be called
     keep_running(observer, config["send_heartbeat"], config["heartbeat_seconds"])
