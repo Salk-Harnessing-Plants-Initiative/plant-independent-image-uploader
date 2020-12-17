@@ -6,13 +6,13 @@ December 2020
 
 * On startup, detects all files in the "unprocessed" directory (and recursive subdirectories),
 and for each file, uploads it to S3 and moves it to the "done" directory upon success, "error" directory upon failure
+* Attaches to the newly created S3 file a field called "file_created" in its metadata section. This is the timestamp
+of when the file was created in the uploader's filesystem
 * As long as the script is running, it will continuously monitor the "unprocessed" directory for new
 files and do the same
 * Logs to AWS CloudWatch for remote monitoring
-* You should use Windows Task Scheduler or Windows Service / PowerShell to get the script to always "be on"
-if you're running this script on a Windows computer
 
-https://stackoverflow.com/questions/57511964/windows-10-how-do-i-ensure-python-script-will-run-as-long-as-computer-is-on
+References:
 https://pythonhosted.org/watchdog/quickstart.html
 https://blog.magrathealabs.com/filesystem-events-monitoring-with-python-9f5329b651c3
 """
@@ -32,7 +32,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
 # (For bug workaround for watchdog 1.0.1)
 from watchdog.utils import platform
-from watchdog.observers.kqueue import KqueueObserver
+from watchdog.observers.polling import PollingObserver
 # For AWS S3
 import boto3
 from botocore.exceptions import ClientError
@@ -83,10 +83,9 @@ def upload_file(s3_client, file_name, bucket, object_name):
     :return: True if file was uploaded, else False
     """
     global logger
-    metadata = get_metadata(file_name)
     try:
         response = s3_client.upload_file(file_name, bucket, object_name, 
-            Callback=ProgressPercentage(file_name), ExtraArgs=metadata)
+            Callback=ProgressPercentage(file_name), ExtraArgs=get_metadata(file_name))
         logger.info(response)
     except ClientError as e:
         logger.error(e)
@@ -136,9 +135,11 @@ def move(src_path, dir):
 def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir):
     """Helper
     """
+    global logger
     object_name = generate_bucket_key(file_path, bucket_dir)
     success = upload_file(s3_client, file_path, bucket, object_name)
     if success:
+        logger.info("Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
         move(file_path, done_dir)
     else:
         move(file_path, error_dir)
@@ -238,7 +239,10 @@ def main():
     event_handler = S3EventHandler(s3_client, bucket, bucket_dir, unprocessed_dir, done_dir, error_dir)
     if platform.is_darwin():
         # Bug workaround for watchdog 1.0.1
-        observer = KqueueObserver()
+        # For now you should NOT use this script for production use because
+        # the polling observer is usually used as the a last resort in the watchdog library
+        # and is literally implemented by constantly poking the filesystem
+        observer = PollingObserver()
     else:
         observer = Observer()
     observer.schedule(event_handler, unprocessed_dir, recursive=True)
@@ -255,5 +259,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-# TODO bug where the handler is only called once when you move a bunch of files into the folder
-# Renew the session https://stackoverflow.com/questions/63724485/how-to-refresh-the-boto3-credetials-when-python-script-is-running-indefinitely
+# TODO: Discover whether it's necessary to renew the boto3 client after some time
+# (https://stackoverflow.com/questions/63724485/how-to-refresh-the-boto3-credetials-when-python-script-is-running-indefinitely)
