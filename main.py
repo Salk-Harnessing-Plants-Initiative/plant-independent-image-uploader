@@ -244,3 +244,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# TODO logger NOT logging lol
+# TODO bug where the handler is only called once when you move a bunch of files into the folder
