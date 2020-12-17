@@ -241,7 +241,7 @@ def main():
         # Bug workaround for watchdog 1.0.1
         # For now you should NOT use this script for production use because
         # the polling observer is usually used as the a last resort in the watchdog library
-        # and is literally implemented by constantly poking the filesystem
+        # and is literally implemented by spinning / constantly poking the filesystem
         observer = PollingObserver()
     else:
         observer = Observer()
