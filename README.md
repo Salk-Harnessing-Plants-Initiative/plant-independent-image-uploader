@@ -1,5 +1,5 @@
 # Installation
-*Note: As of 16 December 2020, it is NOT recommended that you use this Python script for macOS. 
+*Note: As of 16 December 2020, it is NOT recommended that you use this Python script for macOS in production. 
 (This has to do with the fact that `watchdog 1.0.1` has bugs for mac).
 It should be fine for other operating systems.*
 
