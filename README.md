@@ -11,10 +11,11 @@ Install the [awscli](https://aws.amazon.com/cli/) and set your AWS credentials (
 ```
 aws configure
 ```
-Copy the example config file, then fill out the settings:
+Copy the example config file, 
 ```
 cp config.yml.dst config.yml
 ```
+then fill out the settings.
 
 # To run
 ```
