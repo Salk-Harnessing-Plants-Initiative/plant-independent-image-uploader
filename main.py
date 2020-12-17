@@ -133,7 +133,7 @@ def move(src_path, dir):
         pass
 
 def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir):
-    """Helper
+    """Name, upload, move file
     """
     global logger
     object_name = generate_bucket_key(file_path, bucket_dir)
