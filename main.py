@@ -30,11 +30,17 @@ import pathlib
 # For detecting new files
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
+# (For bug workaround for watchdog 1.0.1)
+from watchdog.utils import platform
+from watchdog.observers.kqueue import KqueueObserver
 # For AWS S3
 import boto3
 # For logging remotely to AWS CloudWatch
 from boto3.session import Session
 import watchtower
+
+# Have a global logger so you can add the AWS CloudWatch handler
+logger = logging.getLogger(__name__)
 
 def creation_date(file_path):
     """
@@ -75,12 +81,13 @@ def upload_file(s3_client, file_name, bucket, object_name):
     :param object_name: S3 object name. Also known as a "Key" in S3 bucket terms.
     :return: True if file was uploaded, else False
     """
+    global logger
     try:
         response = s3_client.upload_file(file_name, bucket, object_name, 
             Callback=ProgressPercentage(file_name), ExtraArgs=get_metadata(file_name))
-        logging.info(response)
+        logger.info(response)
     except ClientError as e:
-        logging.error(e)
+        logger.error(e)
         return False
     return True
 
@@ -108,6 +115,7 @@ def move(src_path, dir):
     "{dir}/YYYY-MM-DD/{src_path's baseroot} (i){src ext}" instead to avoid collisions. 
     (Where i is a recursive increment).
     """
+    global logger
     try:
         today_subdir = ensure_today_subdir(dir)
         dst_path = os.path.join(today_subdir, ntpath.basename(src_path))
@@ -120,7 +128,7 @@ def move(src_path, dir):
         # Finally move file
         shutil.move(src_path, dst_path)
     except Exception as e:
-        logging.error(e)
+        logger.error(e)
         pass
 
 def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir):
@@ -150,16 +158,17 @@ def keep_running(observer, send_heartbeat, heartbeat_seconds):
     If send_heartbeat is true, logs a heartbeat approximately every
     heartbeat_seconds
     """
+    global logger
     try:
         s = 0
         while True:
             time.sleep(1)
             s += 1
             if send_heartbeat and s >= heartbeat_seconds:
-                logging.info("HEARTBEAT")
+                logger.info("HEARTBEAT")
                 s = 0
     except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt: shutting down script.py...")
+        logger.info("KeyboardInterrupt: shutting down script.py...")
         observer.stop()
         observer.join()
 
@@ -175,9 +184,10 @@ class ProgressPercentage(object):
     def __call__(self, bytes_amount):
         """Callback that logs how many bytes have been uploaded so far for a particular file
         """
+        global logger
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
-        logging.info("Uploading status for {}: {} / {} ({}%)"
+        logger.info("Uploading status for {}: {} / {} ({}%)"
             .format(self._filename, self._seen_so_far, self._size, percentage))
 
 class S3EventHandler(FileSystemEventHandler):
@@ -198,15 +208,16 @@ class S3EventHandler(FileSystemEventHandler):
             process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, self.done_dir, self.error_dir)
 
 def main():
+    global logger
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     config = yaml.safe_load(open("config.yml"))
     s3_client = boto3.client('s3', aws_access_key_id=config["s3"]["access_key"], 
                         aws_secret_access_key=config["s3"]["secret_key"])
-    cloudwatch = Session(aws_access_key_id=config["cloudwatch"]["access_key"],
-                        aws_secret_access_key=config["cloudwatch"]["secret_key"],
-                        region_name=config["cloudwatch"]["region_name"])
+    #cloudwatch = Session(aws_access_key_id=config["cloudwatch"]["access_key"],
+    #                    aws_secret_access_key=config["cloudwatch"]["secret_key"],
+    #                    region_name=config["cloudwatch"]["region_name"])
     bucket = config["s3"]["bucket"]
     bucket_dir = config["s3"]["bucket_dir"]
     unprocessed_dir = config["unprocessed_dir"]
@@ -214,23 +225,25 @@ def main():
     error_dir = config["error_dir"]
 
     # Setup remote logging
-    logger = logging.getLogger(__name__)
     watchtower_handler = watchtower.CloudWatchLogHandler(
         log_group=config["cloudwatch"]["log_group"],
         stream_name=config["cloudwatch"]["stream_name"],
         send_interval=config["heartbeat_seconds"],
-        boto3_session=cloudwatch,
-        create_log_group=False
+        # boto3_session=cloudwatch,
+        # create_log_group=False
     )
     logger.addHandler(watchtower_handler)
-    print(watchtower_handler)
 
     # Check for any preexisting files in the "unprocessed" folder
     preexisting = get_preexisting_files(unprocessed_dir)
 
     # Setup the watchdog handler for new files that are added while the script is running
     event_handler = S3EventHandler(s3_client, bucket, bucket_dir, unprocessed_dir, done_dir, error_dir)
-    observer = Observer()
+    if platform.is_darwin():
+        # Bug workaround for watchdog 1.0.1
+        observer = KqueueObserver()
+    else:
+        observer = Observer()
     observer.schedule(event_handler, unprocessed_dir, recursive=True)
     observer.start()
 
@@ -245,5 +258,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-# TODO logger NOT logging lol
 # TODO bug where the handler is only called once when you move a bunch of files into the folder
+# Renew the session https://stackoverflow.com/questions/63724485/how-to-refresh-the-boto3-credetials-when-python-script-is-running-indefinitely
