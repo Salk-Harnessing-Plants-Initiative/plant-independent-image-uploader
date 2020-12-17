@@ -35,6 +35,7 @@ from watchdog.utils import platform
 from watchdog.observers.kqueue import KqueueObserver
 # For AWS S3
 import boto3
+from botocore.exceptions import ClientError
 # For logging remotely to AWS CloudWatch
 from boto3.session import Session
 import watchtower
@@ -82,9 +83,10 @@ def upload_file(s3_client, file_name, bucket, object_name):
     :return: True if file was uploaded, else False
     """
     global logger
+    metadata = get_metadata(file_name)
     try:
         response = s3_client.upload_file(file_name, bucket, object_name, 
-            Callback=ProgressPercentage(file_name), ExtraArgs=get_metadata(file_name))
+            Callback=ProgressPercentage(file_name), ExtraArgs=metadata)
         logger.info(response)
     except ClientError as e:
         logger.error(e)
@@ -213,11 +215,7 @@ def main():
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     config = yaml.safe_load(open("config.yml"))
-    s3_client = boto3.client('s3', aws_access_key_id=config["s3"]["access_key"], 
-                        aws_secret_access_key=config["s3"]["secret_key"])
-    #cloudwatch = Session(aws_access_key_id=config["cloudwatch"]["access_key"],
-    #                    aws_secret_access_key=config["cloudwatch"]["secret_key"],
-    #                    region_name=config["cloudwatch"]["region_name"])
+    s3_client = boto3.client('s3')
     bucket = config["s3"]["bucket"]
     bucket_dir = config["s3"]["bucket_dir"]
     unprocessed_dir = config["unprocessed_dir"]
@@ -229,8 +227,7 @@ def main():
         log_group=config["cloudwatch"]["log_group"],
         stream_name=config["cloudwatch"]["stream_name"],
         send_interval=config["heartbeat_seconds"],
-        # boto3_session=cloudwatch,
-        # create_log_group=False
+        create_log_group=False
     )
     logger.addHandler(watchtower_handler)
 
