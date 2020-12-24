@@ -190,8 +190,10 @@ class ProgressPercentage(object):
         global logger
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
-        logger.info("Uploading status for {}: {} / {} ({}%)"
-            .format(self._filename, self._seen_so_far, self._size, percentage))
+        #logger.info("Uploading status for {}: {} / {} ({}%)"
+        #    .format(self._filename, self._seen_so_far, self._size, percentage))
+        # Print for now instead of log because this gets kind of spammy
+        print("Uploading status for {}: {} / {} ({}%)".format(self._filename, self._seen_so_far, self._size, percentage))
 
 class S3EventHandler(FileSystemEventHandler):
     """Handler for what to do if watchdog detects a filesystem change
@@ -264,3 +266,4 @@ if __name__ == "__main__":
 # FUTURE TODO: Discover whether single-threaded upload is too slow and whether multithreading is necessary here
 # (Note that setting Config to something like=boto3.s3.transfer.TransferConfig(max_concurrency=5, use_threads=True)
 # doesn't seem to have a multithreading effect for some reason)
+# TODO: Clean up upload progress callback logic
