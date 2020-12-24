@@ -7,7 +7,7 @@ Ensure pipenv is installed on your computer. Then install the dependencies:
 ```
 pipenv install
 ```
-Install the [awscli](https://aws.amazon.com/cli/) and set your AWS credentials (our script uses the local `~/.aws/credentials` file):
+Install the [awscli](https://aws.amazon.com/cli/) (`pip install awscli` might work) and set your AWS credentials (our script uses the local `~/.aws/credentials` file):
 ```
 aws configure
 ```
