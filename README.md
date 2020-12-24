@@ -1,3 +1,14 @@
+# AWS S3 desktop file uploader
+Python script for uploading files to AWS S3 bucket
+
+* On startup, detects all files in the "unprocessed" directory (and recursive subdirectories),
+and for each file, uploads it to S3. Moves it to the "done" directory upon success, "error" directory upon failure
+* Attaches to the newly created S3 file a field called "file_created" in its metadata section. This is the timestamp
+of when the file was created in the uploader's filesystem
+* As long as the script is running, it will continuously monitor the "unprocessed" directory for new
+files and do the same
+* Logs to AWS CloudWatch for remote monitoring
+
 # Installation
 *Note: As of 16 December 2020, it is NOT recommended that you use this Python script for macOS in production. 
 (This has to do with the fact that `watchdog 1.0.1` has bugs for mac).
