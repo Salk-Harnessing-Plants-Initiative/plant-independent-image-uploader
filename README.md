@@ -1,5 +1,5 @@
 # AWS S3 desktop file uploader
-Python script for uploading files to AWS S3 bucket
+Python script for uploading files to AWS S3 bucket with some extra features
 
 * On startup, detects all files in the "unprocessed" directory (and recursive subdirectories),
 and for each file, uploads it to S3. Moves it to the "done" directory upon success, "error" directory upon failure
