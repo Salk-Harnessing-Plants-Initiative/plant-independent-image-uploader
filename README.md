@@ -19,7 +19,7 @@ then fill out the settings.
 
 # To run
 ```
-pipenv run pythong main.py
+pipenv run python main.py
 ```
 
 * You should use Windows Task Scheduler or Windows Service / PowerShell to get the script to always "be on"
