@@ -5,8 +5,8 @@ send_heartbeat: true
 heartbeat_seconds: 60
 s3:
   bucket: ~
-  bucket_dir: ~ # must include '/' at the end
+  bucket_dir: ~ # aka key prefix. must include '/' at the end
 cloudwatch:
-  log_group: ~
+  log_group: ~ # must already exist
   stream_name: ~
-  send_interval: 30
+  send_interval: 30 # in seconds
