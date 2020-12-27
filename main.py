@@ -259,3 +259,4 @@ if __name__ == "__main__":
 # (Note that setting Config to something like=boto3.s3.transfer.TransferConfig(max_concurrency=5, use_threads=True)
 # doesn't seem to have a multithreading effect for some reason)
 # TODO: Clean up upload progress callback logic
+# TODO: replace uuid with nanoid with letters only
