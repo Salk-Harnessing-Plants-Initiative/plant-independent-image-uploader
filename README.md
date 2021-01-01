@@ -41,7 +41,7 @@ if you're running this script on a Windows computer: https://stackoverflow.com/q
 ```
 apt-get install run-one
 ```
-Ensure exactly one instance of `main.py` is running, and check every 5 minutes:
+"Ensure exactly one instance of `main.py` is running, and check every 5 minutes":
 ```
 */5 * * * * run-one /path/to/pipenv run python /path/to/main.py
 ```
