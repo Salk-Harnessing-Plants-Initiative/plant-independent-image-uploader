@@ -36,3 +36,13 @@ pipenv run python main.py
 * You should use Windows Task Scheduler or Windows Service / PowerShell to get the script to always "be on"
 if you're running this script on a Windows computer: https://stackoverflow.com/questions/57511964/windows-10-how-do-i-ensure-python-script-will-run-as-long-as-computer-is-on
 * For Linux: https://stackoverflow.com/questions/2366693/run-cron-job-only-if-it-isnt-already-running/38840507#38840507
+
+## Linux example
+```
+apt-get install run-one
+```
+Ensure exactly one instance of `main.py` is running, and check every 5 minutes:
+```
+*/5 * * * * run-one /path/to/pipenv run python /path/to/main.py
+```
+
