@@ -112,10 +112,12 @@ def move(src_path, dir):
     try:
         today_subdir = ensure_today_subdir(dir)
         dst_path = os.path.join(today_subdir, ntpath.basename(src_path))
-        # Avoid collisions
+        # Avoid collisions if file already exists at dst_path
+        # Format the same way filename collisions are resolved in Google Chrome downloads
         root_ext = os.path.splitext(dst_path)
         i = 0
         while os.path.isfile(dst_path):
+            # Recursively avoid the collision
             i += 1
         dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
         # Finally move file
