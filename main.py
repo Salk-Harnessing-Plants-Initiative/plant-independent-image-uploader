@@ -117,7 +117,7 @@ def move(src_path, dir):
         i = 0
         while os.path.isfile(dst_path):
             i += 1
-            dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
+        dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
         # Finally move file
         shutil.move(src_path, dst_path)
     except Exception as e:
