@@ -1,7 +1,8 @@
 import setuptools
 
 def locked_requirements(section):
-"""Look through the 'Pipfile.lock' to fetch requirements by section."""
+    """Look through the 'Pipfile.lock' to fetch requirements by section.
+    https://stackoverflow.com/a/50957425/14775744"""
     with open('Pipfile.lock') as pip_file:
         pipfile_json = json.load(pip_file)
 
