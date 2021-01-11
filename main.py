@@ -56,7 +56,7 @@ def get_file_created(file_path):
     """Gets the file's creation timestamp from the filesystem and returns it as a string
     Errors upon failure
     """
-    return datetime.fromtimestamp(creation_date(file_path)).astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')
+    return datetime.fromtimestamp(creation_date(file_path)).astimezone().isoformat()
 
 def get_metadata(file_path):
     metadata = {"Metadata": {}}
