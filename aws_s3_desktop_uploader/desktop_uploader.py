@@ -218,7 +218,7 @@ def main():
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    config = yaml.safe_load(open("../config.yml"))
+    config = yaml.safe_load(open(os.path.join("..", "config.yml")))
     s3_client = boto3.client('s3')
     bucket = config["s3"]["bucket"]
     bucket_dir = config["s3"]["bucket_dir"]
