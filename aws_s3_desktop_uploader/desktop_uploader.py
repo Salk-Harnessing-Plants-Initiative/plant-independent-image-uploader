@@ -23,7 +23,7 @@ import pathlib
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
 # (For bug workaround for watchdog 1.0.1)
-from watchdog.utils import platform
+from watchdog.utils import platform as watchdog_platform
 from watchdog.observers.polling import PollingObserver
 # For AWS S3
 import boto3
@@ -56,7 +56,7 @@ def get_file_created(file_path):
     """Gets the file's creation timestamp from the filesystem and returns it as a string
     Errors upon failure
     """
-    return datetime.fromtimestamp(creation_date(file_path)).astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')
+    return datetime.fromtimestamp(creation_date(file_path)).astimezone().isoformat()
 
 def get_metadata(file_path):
     metadata = {"Metadata": {}}
@@ -233,7 +233,7 @@ def main():
 
     # Setup the watchdog handler for new files that are added while the script is running
     event_handler = S3EventHandler(s3_client, bucket, bucket_dir, unprocessed_dir, done_dir, error_dir)
-    if platform.is_darwin():
+    if watchdog_platform.is_darwin():
         # Bug workaround for watchdog 1.0.1
         # For now you should NOT use this script for production use because
         # the polling observer is usually used as the a last resort in the watchdog library
