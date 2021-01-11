@@ -1,4 +1,5 @@
 import setuptools
+import json
 
 def locked_requirements(section):
     """Look through the 'Pipfile.lock' to fetch requirements by section.
