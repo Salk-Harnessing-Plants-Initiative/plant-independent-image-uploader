@@ -26,11 +26,11 @@ Copy the example config file,
 ```
 cp config.yml.dst config.yml
 ```
-then fill out the settings.
+then fill out the settings. You should have both S3 and CloudWatch set up on AWS.
 
 # To run
 ```
-pipenv run python main.py
+pipenv run python aws_s3_desktop_uploader/desktop_uploader.py
 ```
 
 * You should use Windows Task Scheduler or Windows Service / PowerShell to get the script to always "be on"
@@ -43,6 +43,17 @@ apt-get install run-one
 ```
 "Ensure exactly one instance of `main.py` is running, and check every 5 minutes":
 ```
-*/5 * * * * run-one /path/to/pipenv run python /path/to/main.py
+*/5 * * * * run-one /path/to/pipenv run python /path/to/aws_s3_desktop_uploader/desktop_uploader.py
 ```
 
+# Use as a package
+Haven't taken the time to distribute a full-fledged package, but you can still use this as a git submodule:
+```
+git submodule add https://github.com/Salk-Harnessing-Plants-Initiative/aws-s3-desktop-uploader
+pipenv install --editable ./aws-s3-desktop-uploader
+```
+Then in your Python script:
+```
+from aws_s3_desktop_uploader import desktop_uploader
+print(desktop_uploader.get_file_created("iguana.jpg"))
+```

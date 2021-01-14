@@ -92,41 +92,45 @@ def generate_bucket_key(file_path, s3_directory):
     root_ext = os.path.splitext(ntpath.basename(file_path));
     return s3_directory + root_ext[0] + "-" + str(uuid.uuid4()) + root_ext[1];
 
-def ensure_today_subdir(dir):
-    """If dir doesn't have a subdirectory named today's date in "YYYY-MM-DD" format,
-    make one and return the path
+def move(src_path, dst_path):
+    """ Move file from src_path to dst_path, creating new directories from dst_path 
+    along the way if they don't already exist.     
+    Avoids collisions if file already exists at dst_path
+    (Formatted the same way filename collisions are resolved in Google Chrome downloads)
     """
-    today_subdir = os.path.join(dir, datetime.today().strftime('%Y-%m-%d'))
-    if not os.path.exists(today_subdir):
-        os.makedirs(today_subdir)
-    return today_subdir
+    root_ext = os.path.splitext(dst_path)
+    i = 0
+    while os.path.isfile(dst_path):
+        # Recursively avoid the collision
+        i += 1
+        dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
 
-def move(src_path, dir):
-    """ Move the file {src_path} to {dir}/YYYY-MM-DD/{src_path's basename},
-    where YYYY-MM-DD is today's date. If the YYYY-MM-DD subdirectory doesn't exist, creates it.
-    If the destination path is already taken, moves the file to 
-    "{dir}/YYYY-MM-DD/{src_path's baseroot} (i){src ext}" instead to avoid collisions. 
-    (Where i is a recursive increment).
+    # Finally move file, make directories if needed
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    shutil.move(src_path, dst_path)
+
+def make_parallel_path(src_dir, dst_dir, src_path, add_date_subdir=True):
+    """Creates a parallel path of src_path using dst_dir instead of src_dir
+    as the prefix. If add_date_subdir is True, uses dst_dir/(today's date in "YYYY-MM-DD" format)/
+    as the new prefix instead.
+
+    src_dir should be a prefix of src_path, else error
     """
-    global logger
-    try:
-        today_subdir = ensure_today_subdir(dir)
-        dst_path = os.path.join(today_subdir, ntpath.basename(src_path))
-        # Avoid collisions if file already exists at dst_path
-        # Format the same way filename collisions are resolved in Google Chrome downloads
-        root_ext = os.path.splitext(dst_path)
-        i = 0
-        while os.path.isfile(dst_path):
-            # Recursively avoid the collision
-            i += 1
-            dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
-        # Finally move file
-        shutil.move(src_path, dst_path)
-    except Exception as e:
-        logger.error(e)
-        pass
+    # Remove prefix
+    prefix = src_dir
+    if src_path.startswith(prefix):
+        suffix = src_path[len(prefix)+1:]
+    else:
+        raise Exception("src_dir {} was not a prefix of src_path {}".format(src_dir, src_path))
 
-def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir):
+    # Add prefix
+    result = dst_dir
+    if add_date_subdir:
+        result = os.path.join(result, datetime.today().strftime('%Y-%m-%d'))
+    result = os.path.join(result, suffix)
+    return result
+
+def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir):
     """Name, upload, move file
     """
     global logger
@@ -134,9 +138,11 @@ def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir):
     success = upload_file(s3_client, file_path, bucket, object_name)
     if success:
         logger.info("Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
-        move(file_path, done_dir)
+        done_path = make_parallel_path(unprocessed_dir, done_dir, file_path)
+        move(file_path, done_path)
     else:
-        move(file_path, error_dir)
+        error_path = make_parallel_path(unprocessed_dir, error_dir, file_path)
+        move(file_path, error_path)
 
 def get_preexisting_files(dir):
     """Recursively get all filenames in a directory
@@ -204,14 +210,15 @@ class S3EventHandler(FileSystemEventHandler):
     def on_created(self, event):
         is_file = not event.is_directory
         if is_file:
-            process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, self.done_dir, self.error_dir)
+            process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
+                self.done_dir, self.error_dir, self.unprocessed_dir)
 
 def main():
     global logger
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    config = yaml.safe_load(open("config.yml"))
+    config = yaml.safe_load(open(os.path.join("..", "config.yml")))
     s3_client = boto3.client('s3')
     bucket = config["s3"]["bucket"]
     bucket_dir = config["s3"]["bucket_dir"]
@@ -247,7 +254,7 @@ def main():
     # Upload & process any preexisting files
     if preexisting:
         for file_path in preexisting:
-            process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir)
+            process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
 
     # Keep the main thread running so watchdog handler can be still be called
     keep_running(observer, config["send_heartbeat"], config["heartbeat_seconds"])

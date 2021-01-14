@@ -1,2 +1,4 @@
 config.yml
 .DS_Store
+aws_s3_desktop_uploader.egg-info
+pyproject.toml
