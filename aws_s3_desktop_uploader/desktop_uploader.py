@@ -204,6 +204,7 @@ class S3EventHandler(FileSystemEventHandler):
                 self.done_dir, self.error_dir, self.unprocessed_dir)
 
 def main(use_cloudwatch=True):
+    logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -247,6 +248,3 @@ if __name__ == "__main__":
 
 # FUTURE TODO: Discover whether it's necessary to renew the boto3 client after some time
 # (https://stackoverflow.com/questions/63724485/how-to-refresh-the-boto3-credetials-when-python-script-is-running-indefinitely)
-# FUTURE TODO: Discover whether single-threaded upload is too slow and whether multithreading is necessary here
-# (Note that setting Config to something like=boto3.s3.transfer.TransferConfig(max_concurrency=5, use_threads=True)
-# doesn't seem to have a multithreading effect for some reason)
