@@ -203,6 +203,11 @@ class S3EventHandler(FileSystemEventHandler):
         if is_file:
             process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
                 self.done_dir, self.error_dir, self.unprocessed_dir)
+        else:
+            # Crawl the new directory and process everything in it
+            file_paths = get_preexisting_files(event.src_path)
+            for file_path in file_paths:
+                process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
 
 def main(use_cloudwatch=True):
     logger = logging.getLogger(__name__)
@@ -237,9 +242,8 @@ def main(use_cloudwatch=True):
     observer.start()
 
     # Upload & process any preexisting files
-    if preexisting:
-        for file_path in preexisting:
-            process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
+    for file_path in preexisting:
+        process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
 
     # Keep the main thread running so watchdog handler can be still be called
     keep_running(observer, config["send_heartbeat"], config["heartbeat_seconds"])
