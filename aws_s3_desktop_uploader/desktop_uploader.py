@@ -22,9 +22,6 @@ import pathlib
 # For detecting new files
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
-# (For bug workaround for watchdog 1.0.1)
-from watchdog.utils import platform as watchdog_platform
-from watchdog.observers.polling import PollingObserver
 # For AWS S3
 import boto3
 from botocore.exceptions import ClientError
@@ -235,14 +232,7 @@ def main(use_cloudwatch=True):
 
     # Setup the watchdog handler for new files that are added while the script is running
     event_handler = S3EventHandler(s3_client, bucket, bucket_dir, unprocessed_dir, done_dir, error_dir)
-    if watchdog_platform.is_darwin():
-        # Bug workaround for watchdog 1.0.1
-        # For now you should NOT use this script for production use because
-        # the polling observer is usually used as the a last resort in the watchdog library
-        # and is literally implemented by spinning / constantly poking the filesystem
-        observer = PollingObserver()
-    else:
-        observer = Observer()
+    observer = Observer()
     observer.schedule(event_handler, unprocessed_dir, recursive=True)
     observer.start()
 
