@@ -227,7 +227,7 @@ def main(use_cloudwatch=True):
         watchtower_handler = watchtower.CloudWatchLogHandler(
             log_group=config["cloudwatch"]["log_group"],
             stream_name=config["cloudwatch"]["stream_name"],
-            send_interval=config["heartbeat_seconds"],
+            send_interval=config["send_interval"],
             create_log_group=False
         )
         logger.addHandler(watchtower_handler)
