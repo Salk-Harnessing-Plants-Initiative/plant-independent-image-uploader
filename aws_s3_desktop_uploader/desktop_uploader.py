@@ -54,6 +54,7 @@ def get_file_created(file_path):
 
 def get_metadata(file_path):
     metadata = {"Metadata": {}}
+    metadata["Metadata"]["user_input_filename"] = os.path.basename(file_path)
     try:
         metadata["Metadata"]["file_created"] = get_file_created(file_path)
     except:
