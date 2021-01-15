@@ -29,9 +29,6 @@ from botocore.exceptions import ClientError
 from boto3.session import Session
 import watchtower
 
-# Have a global logger so you can add the AWS CloudWatch handler
-logger = logging.getLogger(__name__)
-
 def creation_date(file_path):
     """
     Try to get the date that a file was created, falling back to when it was
@@ -64,22 +61,17 @@ def get_metadata(file_path):
     return metadata
 
 def upload_file(s3_client, file_name, bucket, object_name, print_progress=False):
-    """Upload a file to an S3 bucket
+    """Upload a file to an S3 bucket and include special metadata
     :param s3_client: Initialized S3 client to use
     :param file_name: File to upload
     :param bucket: Bucket to upload to
     :param object_name: S3 object name. Also known as a "Key" in S3 bucket terms.
     :param print_progress: Optional, prints upload progress if True
-    :return: True if file was uploaded, else False
     """
-    try:
-        response = s3_client.upload_file(file_name, bucket, object_name, 
-            Callback=ProgressPercentage(file_name) if print_progress else None,
-            ExtraArgs=get_metadata(file_name))
-    except ClientError as e:
-        logger.error(e)
-        return False
-    return True
+    s3_client.upload_file(file_name, bucket, object_name, 
+        Callback=ProgressPercentage(file_name) if print_progress else None,
+        ExtraArgs=get_metadata(file_name))
+
 
 def generate_bucket_key(file_path, s3_directory):
     """Keep things nice and random to prevent collisions
@@ -127,16 +119,21 @@ def make_parallel_path(src_dir, dst_dir, src_path, add_date_subdir=True):
     result = os.path.join(result, suffix)
     return result
 
-def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir):
+def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir,
+    log_info=True):
     """Name, upload, move file
     """
+    logger = logging.getLogger(__name__)
     object_name = generate_bucket_key(file_path, bucket_dir)
-    success = upload_file(s3_client, file_path, bucket, object_name)
-    if success:
-        logger.info("Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
+    try:
+        upload_file(s3_client, file_path, bucket, object_name)
         done_path = make_parallel_path(unprocessed_dir, done_dir, file_path)
         move(file_path, done_path)
-    else:
+        if log_info:
+            logger.info("S3 Desktop Uploader: Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
+    except Exception as e:
+        if log_info:
+            logger.exception("S3 Desktop Uploader: Failed to upload {}: {}".format(file_path, str(e)))
         error_path = make_parallel_path(unprocessed_dir, error_dir, file_path)
         move(file_path, error_path)
 
@@ -157,6 +154,7 @@ def keep_running(observer, send_heartbeat, heartbeat_seconds):
     If send_heartbeat is true, logs a heartbeat approximately every
     heartbeat_seconds
     """
+    logger = logging.getLogger(__name__)
     try:
         s = 0
         while True:
