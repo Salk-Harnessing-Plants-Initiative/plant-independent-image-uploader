@@ -66,19 +66,19 @@ def get_metadata(file_path):
         pass
     return metadata
 
-def upload_file(s3_client, file_name, bucket, object_name):
+def upload_file(s3_client, file_name, bucket, object_name, print_progress=False):
     """Upload a file to an S3 bucket
     :param s3_client: Initialized S3 client to use
     :param file_name: File to upload
     :param bucket: Bucket to upload to
     :param object_name: S3 object name. Also known as a "Key" in S3 bucket terms.
+    :param print_progress: Optional, prints upload progress if True
     :return: True if file was uploaded, else False
     """
-    global logger
     try:
         response = s3_client.upload_file(file_name, bucket, object_name, 
-            Callback=ProgressPercentage(file_name), ExtraArgs=get_metadata(file_name))
-        logger.info(response)
+            Callback=ProgressPercentage(file_name) if print_progress else None,
+            ExtraArgs=get_metadata(file_name))
     except ClientError as e:
         logger.error(e)
         return False
@@ -95,7 +95,7 @@ def generate_bucket_key(file_path, s3_directory):
 def move(src_path, dst_path):
     """ Move file from src_path to dst_path, creating new directories from dst_path 
     along the way if they don't already exist.     
-    Avoids collisions if file already exists at dst_path
+    Avoids collisions if file already exists at dst_path by adding "(#)" if necessary
     (Formatted the same way filename collisions are resolved in Google Chrome downloads)
     """
     root_ext = os.path.splitext(dst_path)
@@ -133,7 +133,6 @@ def make_parallel_path(src_dir, dst_dir, src_path, add_date_subdir=True):
 def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir):
     """Name, upload, move file
     """
-    global logger
     object_name = generate_bucket_key(file_path, bucket_dir)
     success = upload_file(s3_client, file_path, bucket, object_name)
     if success:
@@ -161,7 +160,6 @@ def keep_running(observer, send_heartbeat, heartbeat_seconds):
     If send_heartbeat is true, logs a heartbeat approximately every
     heartbeat_seconds
     """
-    global logger
     try:
         s = 0
         while True:
@@ -187,12 +185,9 @@ class ProgressPercentage(object):
     def __call__(self, bytes_amount):
         """Callback that logs how many bytes have been uploaded so far for a particular file
         """
-        global logger
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
-        #logger.info("Uploading status for {}: {} / {} ({}%)"
-        #    .format(self._filename, self._seen_so_far, self._size, percentage))
-        # Print for now instead of log because this gets kind of spammy
+        # Print instead of log because this gets kind of spammy
         print("Uploading status for {}: {} / {} ({}%)".format(self._filename, self._seen_so_far, self._size, percentage))
 
 class S3EventHandler(FileSystemEventHandler):
@@ -213,8 +208,7 @@ class S3EventHandler(FileSystemEventHandler):
             process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
                 self.done_dir, self.error_dir, self.unprocessed_dir)
 
-def main():
-    global logger
+def main(use_cloudwatch=True):
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -227,13 +221,14 @@ def main():
     error_dir = config["error_dir"]
 
     # Setup remote logging
-    watchtower_handler = watchtower.CloudWatchLogHandler(
-        log_group=config["cloudwatch"]["log_group"],
-        stream_name=config["cloudwatch"]["stream_name"],
-        send_interval=config["heartbeat_seconds"],
-        create_log_group=False
-    )
-    logger.addHandler(watchtower_handler)
+    if use_cloudwatch:
+        watchtower_handler = watchtower.CloudWatchLogHandler(
+            log_group=config["cloudwatch"]["log_group"],
+            stream_name=config["cloudwatch"]["stream_name"],
+            send_interval=config["heartbeat_seconds"],
+            create_log_group=False
+        )
+        logger.addHandler(watchtower_handler)
 
     # Check for any preexisting files in the "unprocessed" folder
     preexisting = get_preexisting_files(unprocessed_dir)
@@ -267,5 +262,3 @@ if __name__ == "__main__":
 # FUTURE TODO: Discover whether single-threaded upload is too slow and whether multithreading is necessary here
 # (Note that setting Config to something like=boto3.s3.transfer.TransferConfig(max_concurrency=5, use_threads=True)
 # doesn't seem to have a multithreading effect for some reason)
-# TODO: Clean up upload progress callback logic
-# TODO: replace uuid with nanoid with letters only
