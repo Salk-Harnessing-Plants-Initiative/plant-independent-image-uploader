@@ -74,7 +74,6 @@ def upload_file(s3_client, file_name, bucket, object_name, print_progress=False)
         Callback=ProgressPercentage(file_name) if print_progress else None,
         ExtraArgs=get_metadata(file_name))
 
-
 def generate_bucket_key(file_path, s3_directory):
     """Keep things nice and random to prevent collisions
     "/Users/russell/Documents/taco_tuesday.jpg" becomes "raw/taco_tuesday-b94b0793-6c74-44a9-94e0-00420711130d.jpg"
@@ -255,3 +254,6 @@ if __name__ == "__main__":
 
 # FUTURE TODO: Discover whether it's necessary to renew the boto3 client after some time
 # (https://stackoverflow.com/questions/63724485/how-to-refresh-the-boto3-credetials-when-python-script-is-running-indefinitely)
+# FUTURE TODO: Discover whether single-threaded upload is too slow and whether multithreading is necessary here
+# (Note that setting Config to something like=boto3.s3.transfer.TransferConfig(max_concurrency=5, use_threads=True)
+# doesn't seem to have a multithreading effect for some reason)
