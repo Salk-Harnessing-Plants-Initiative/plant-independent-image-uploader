@@ -82,11 +82,29 @@ def generate_bucket_key(file_path, s3_directory):
     root_ext = os.path.splitext(ntpath.basename(file_path));
     return s3_directory + root_ext[0] + "-" + str(uuid.uuid4()) + root_ext[1];
 
-def move(src_path, dst_path):
-    """ Move file from src_path to dst_path, creating new directories from dst_path 
+def delete_directory_if_empty_or_hidden(directory):
+    all_hidden = True
+    files = os.listdir(directory)
+    for file in files:
+        if file[0] != '.':
+            all_hidden = False
+    if all_hidden:
+        try:
+            for file in files:
+                os.remove(os.path.join(directory, file))
+            os.rmdir(directory)
+        except:
+            pass
+
+def move(src_path, dst_path, src_root=None):
+    """Move file from src_path to dst_path, creating new directories from dst_path 
     along the way if they don't already exist.     
-    Avoids collisions if file already exists at dst_path by adding "(#)" if necessary
+    Avoids collisions if file already exists at dst_path by adding "(#)" if necessary, where # is a number
     (Formatted the same way filename collisions are resolved in Google Chrome downloads)
+
+    If src_root is specified, then the function will try to delete the directory of src_path
+    if it is not src_root and it is empty or only contains hidden files. (The hidden files will be deleted).
+    If src_root is not actually a parent directory of src_path, deletion will never take place. 
     """
     root_ext = os.path.splitext(dst_path)
     i = 0
@@ -94,10 +112,14 @@ def move(src_path, dst_path):
         # Recursively avoid the collision
         i += 1
         dst_path = root_ext[0] + " ({})".format(i) + root_ext[1]
-
-    # Finally move file, make directories if needed
+    # Move file, make directories if needed
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     shutil.move(src_path, dst_path)
+    # Delete directory if necessary (recursively)
+    directory = os.path.dirname(src_path)
+    while (src_root is not None and src_path.startswith(src_root) and directory != src_root):
+        delete_directory_if_empty_or_hidden(directory)
+        directory = os.path.dirname(directory)
 
 def make_parallel_path(src_dir, dst_dir, src_path, add_date_subdir=True):
     """Creates a parallel path of src_path using dst_dir instead of src_dir
@@ -129,7 +151,7 @@ def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unpro
     try:
         upload_file(s3_client, file_path, bucket, object_name)
         done_path = make_parallel_path(unprocessed_dir, done_dir, file_path)
-        move(file_path, done_path)
+        move(file_path, done_path, src_root=unprocessed_dir)
         if log_info:
             logger.info("S3 Desktop Uploader: Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
     except Exception as e:
@@ -207,7 +229,8 @@ class S3EventHandler(FileSystemEventHandler):
             # Crawl the new directory and process everything in it
             file_paths = get_preexisting_files(event.src_path)
             for file_path in file_paths:
-                process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
+                process(file_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
+                    self.done_dir, self.error_dir, self.unprocessed_dir)
 
 def main(use_cloudwatch=True):
     logger = logging.getLogger(__name__)
