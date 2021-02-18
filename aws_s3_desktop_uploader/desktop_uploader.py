@@ -14,6 +14,7 @@ import logging
 import yaml
 import uuid
 import os
+from os.path import dirname, abspath
 import shutil
 import ntpath
 # For getting file creation timestamp
@@ -22,18 +23,12 @@ import pathlib
 # For detecting new files
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
-# (For bug workaround for watchdog 1.0.1)
-from watchdog.utils import platform as watchdog_platform
-from watchdog.observers.polling import PollingObserver
 # For AWS S3
 import boto3
 from botocore.exceptions import ClientError
 # For logging remotely to AWS CloudWatch
 from boto3.session import Session
 import watchtower
-
-# Have a global logger so you can add the AWS CloudWatch handler
-logger = logging.getLogger(__name__)
 
 def creation_date(file_path):
     """
@@ -60,6 +55,7 @@ def get_file_created(file_path):
 
 def get_metadata(file_path):
     metadata = {"Metadata": {}}
+    metadata["Metadata"]["user_input_filename"] = os.path.basename(file_path)
     try:
         metadata["Metadata"]["file_created"] = get_file_created(file_path)
     except:
@@ -67,22 +63,16 @@ def get_metadata(file_path):
     return metadata
 
 def upload_file(s3_client, file_name, bucket, object_name, print_progress=False):
-    """Upload a file to an S3 bucket
+    """Upload a file to an S3 bucket and include special metadata
     :param s3_client: Initialized S3 client to use
     :param file_name: File to upload
     :param bucket: Bucket to upload to
     :param object_name: S3 object name. Also known as a "Key" in S3 bucket terms.
     :param print_progress: Optional, prints upload progress if True
-    :return: True if file was uploaded, else False
     """
-    try:
-        response = s3_client.upload_file(file_name, bucket, object_name, 
-            Callback=ProgressPercentage(file_name) if print_progress else None,
-            ExtraArgs=get_metadata(file_name))
-    except ClientError as e:
-        logger.error(e)
-        return False
-    return True
+    s3_client.upload_file(file_name, bucket, object_name, 
+        Callback=ProgressPercentage(file_name) if print_progress else None,
+        ExtraArgs=get_metadata(file_name))
 
 def generate_bucket_key(file_path, s3_directory):
     """Keep things nice and random to prevent collisions
@@ -130,16 +120,21 @@ def make_parallel_path(src_dir, dst_dir, src_path, add_date_subdir=True):
     result = os.path.join(result, suffix)
     return result
 
-def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir):
+def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir,
+    log_info=True):
     """Name, upload, move file
     """
+    logger = logging.getLogger(__name__)
     object_name = generate_bucket_key(file_path, bucket_dir)
-    success = upload_file(s3_client, file_path, bucket, object_name)
-    if success:
-        logger.info("Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
+    try:
+        upload_file(s3_client, file_path, bucket, object_name)
         done_path = make_parallel_path(unprocessed_dir, done_dir, file_path)
         move(file_path, done_path)
-    else:
+        if log_info:
+            logger.info("S3 Desktop Uploader: Successfully uploaded {} to {} as {}".format(file_path, bucket, object_name))
+    except Exception as e:
+        if log_info:
+            logger.exception("S3 Desktop Uploader: Failed to upload {}: {}".format(file_path, str(e)))
         error_path = make_parallel_path(unprocessed_dir, error_dir, file_path)
         move(file_path, error_path)
 
@@ -160,6 +155,7 @@ def keep_running(observer, send_heartbeat, heartbeat_seconds):
     If send_heartbeat is true, logs a heartbeat approximately every
     heartbeat_seconds
     """
+    logger = logging.getLogger(__name__)
     try:
         s = 0
         while True:
@@ -207,12 +203,19 @@ class S3EventHandler(FileSystemEventHandler):
         if is_file:
             process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
                 self.done_dir, self.error_dir, self.unprocessed_dir)
+        else:
+            # Crawl the new directory and process everything in it
+            file_paths = get_preexisting_files(event.src_path)
+            for file_path in file_paths:
+                process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
 
 def main(use_cloudwatch=True):
+    logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    config = yaml.safe_load(open(os.path.join("..", "config.yml")))
+    d = dirname(dirname(abspath(__file__)))
+    config = yaml.safe_load(open(os.path.join(d, "config.yml")))
     s3_client = boto3.client('s3')
     bucket = config["s3"]["bucket"]
     bucket_dir = config["s3"]["bucket_dir"]
@@ -225,7 +228,7 @@ def main(use_cloudwatch=True):
         watchtower_handler = watchtower.CloudWatchLogHandler(
             log_group=config["cloudwatch"]["log_group"],
             stream_name=config["cloudwatch"]["stream_name"],
-            send_interval=config["heartbeat_seconds"],
+            send_interval=config["send_interval"],
             create_log_group=False
         )
         logger.addHandler(watchtower_handler)
@@ -235,21 +238,13 @@ def main(use_cloudwatch=True):
 
     # Setup the watchdog handler for new files that are added while the script is running
     event_handler = S3EventHandler(s3_client, bucket, bucket_dir, unprocessed_dir, done_dir, error_dir)
-    if watchdog_platform.is_darwin():
-        # Bug workaround for watchdog 1.0.1
-        # For now you should NOT use this script for production use because
-        # the polling observer is usually used as the a last resort in the watchdog library
-        # and is literally implemented by spinning / constantly poking the filesystem
-        observer = PollingObserver()
-    else:
-        observer = Observer()
+    observer = Observer()
     observer.schedule(event_handler, unprocessed_dir, recursive=True)
     observer.start()
 
     # Upload & process any preexisting files
-    if preexisting:
-        for file_path in preexisting:
-            process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
+    for file_path in preexisting:
+        process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
 
     # Keep the main thread running so watchdog handler can be still be called
     keep_running(observer, config["send_heartbeat"], config["heartbeat_seconds"])
