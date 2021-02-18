@@ -14,6 +14,7 @@ import logging
 import yaml
 import uuid
 import os
+from os.path import dirname, abspath
 import shutil
 import ntpath
 # For getting file creation timestamp
@@ -214,7 +215,8 @@ def main(use_cloudwatch=True):
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    config = yaml.safe_load(open(os.path.join("..", "config.yml")))
+    d = dirname(dirname(abspath(__file__)))
+    config = yaml.safe_load(open(os.path.join(d, "config.yml")))
     s3_client = boto3.client('s3')
     bucket = config["s3"]["bucket"]
     bucket_dir = config["s3"]["bucket_dir"]
