@@ -30,8 +30,7 @@ then fill out the settings. You should have both S3 and CloudWatch set up on AWS
 pipenv run python aws_s3_desktop_uploader/desktop_uploader.py
 ```
 
-* You should use Windows Task Scheduler or Windows Service / PowerShell to get the script to always "be on"
-if you're running this script on a Windows computer: https://stackoverflow.com/questions/57511964/windows-10-how-do-i-ensure-python-script-will-run-as-long-as-computer-is-on
+* For Windows: https://stackoverflow.com/questions/32404/how-do-you-run-a-python-script-as-a-service-in-windows/46450007#46450007
 * For Linux: https://stackoverflow.com/questions/2366693/run-cron-job-only-if-it-isnt-already-running/38840507#38840507
 
 ## Linux example
