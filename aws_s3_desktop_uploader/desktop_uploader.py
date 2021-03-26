@@ -142,13 +142,27 @@ def make_parallel_path(src_dir, dst_dir, src_path, add_date_subdir=True):
     result = os.path.join(result, suffix)
     return result
 
+def qr_code_valid(lambda_arn, lambda_client, qr_code, upload_device_id):
+    d = {
+        "qr_code" : qr_code,
+        "upload_device_id" : upload_device_id
+    }   
+    response = lambda_client.invoke(
+        FunctionName=lambda_arn,
+        LogType='None',
+        Payload=json.dumps(d)
+    )
+    payload = json.loads(response['Payload'].read())
+    return payload['qr_code_valid']
+
 def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir,
-    log_info=True):
+    lambda_client, upload_device_id, log_info=True):
     """Name, upload, move file
     """
     logger = logging.getLogger(__name__)
     object_name = generate_bucket_key(file_path, bucket_dir)
     try:
+        #### TODO THINGY: notice here we can't preflight check because we don't actually have QR code
         upload_file(s3_client, file_path, bucket, object_name)
         done_path = make_parallel_path(unprocessed_dir, done_dir, file_path)
         move(file_path, done_path, src_root=unprocessed_dir)
@@ -212,25 +226,31 @@ class S3EventHandler(FileSystemEventHandler):
     """Handler for what to do if watchdog detects a filesystem change
     """
 
-    def __init__(self, s3_client, s3_bucket, s3_bucket_dir, unprocessed_dir, done_dir, error_dir):
+    def __init__(self, s3_client, s3_bucket, s3_bucket_dir, unprocessed_dir, done_dir, error_dir, 
+        lambda_client, upload_device_id):
+
         self.s3_client = s3_client
         self.s3_bucket = s3_bucket
         self.s3_bucket_dir = s3_bucket_dir
         self.unprocessed_dir = unprocessed_dir
         self.done_dir = done_dir
         self.error_dir = error_dir
+        self.lambda_client = lambda_client
+        self.upload_device_id = upload_device_id
 
     def on_created(self, event):
         is_file = not event.is_directory
         if is_file:
             process(event.src_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
-                self.done_dir, self.error_dir, self.unprocessed_dir)
+                self.done_dir, self.error_dir, self.unprocessed_dir,
+                self.lambda_client, self.upload_device_id)
         else:
             # Crawl the new directory and process everything in it
             file_paths = get_preexisting_files(event.src_path)
             for file_path in file_paths:
                 process(file_path, self.s3_client, self.s3_bucket, self.s3_bucket_dir, 
-                    self.done_dir, self.error_dir, self.unprocessed_dir)
+                    self.done_dir, self.error_dir, self.unprocessed_dir,
+                    self.lambda_client, self.upload_device_id)
 
 def main(use_cloudwatch=True):
     logger = logging.getLogger(__name__)
@@ -245,6 +265,8 @@ def main(use_cloudwatch=True):
     unprocessed_dir = config["unprocessed_dir"]
     done_dir = config["done_dir"]
     error_dir = config["error_dir"]
+    lambda_client = boto3.client('lambda')
+    upload_device_id = config["upload_device_id"]
 
     # Setup remote logging
     if use_cloudwatch:
@@ -267,7 +289,7 @@ def main(use_cloudwatch=True):
 
     # Upload & process any preexisting files
     for file_path in preexisting:
-        process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir)
+        process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unprocessed_dir, lambda_client, upload_device_id)
 
     # Keep the main thread running so watchdog handler can be still be called
     keep_running(observer, config["send_heartbeat"], config["heartbeat_seconds"])

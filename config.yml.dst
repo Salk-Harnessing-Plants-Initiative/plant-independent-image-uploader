@@ -10,3 +10,4 @@ cloudwatch:
   log_group: ~ # must already exist
   stream_name: ~
   send_interval: 30 # in seconds
+upload_device_id: ~
