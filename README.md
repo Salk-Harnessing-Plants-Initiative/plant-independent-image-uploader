@@ -10,6 +10,11 @@ files and do the same
 * Logs to AWS CloudWatch for remote monitoring
 
 # Installation
+Zbar:
+```
+sudo apt-get install libzbar0
+```
+
 
 Ensure pipenv is installed on your computer. Then install the dependencies:
 ```

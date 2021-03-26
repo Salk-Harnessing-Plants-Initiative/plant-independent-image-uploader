@@ -8,6 +8,7 @@ watchdog = "==1.0.2"
 pyyaml = "*"
 boto3 = "*"
 watchtower = "*"
+pyzbar = "==0.1.8"
 
 [dev-packages]
 
