@@ -11,3 +11,4 @@ cloudwatch:
   stream_name: ~
   send_interval: 1 # in seconds
 upload_device_id: ~
+lambda_arn: ~
