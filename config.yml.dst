@@ -2,12 +2,12 @@ unprocessed_dir: ~
 done_dir: ~
 error_dir: ~
 send_heartbeat: true
-heartbeat_seconds: 60
+heartbeat_seconds: 21600
 s3:
-  bucket: ~
-  bucket_dir: ~ # aka key prefix. must include '/' at the end
+  bucket: prod-salk-hpi
+  bucket_dir: image/plate/raw/ # aka key prefix. must include '/' at the end
 cloudwatch:
-  log_group: ~ # must already exist
+  log_group: s3-desktop-uploader # must already exist
   stream_name: ~
-  send_interval: 30 # in seconds
+  send_interval: 1 # in seconds
 upload_device_id: ~
