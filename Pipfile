@@ -9,6 +9,7 @@ pyyaml = "*"
 boto3 = "*"
 watchtower = "*"
 pyzbar = "==0.1.8"
+pillow = "==8.1.0"
 
 [dev-packages]
 
