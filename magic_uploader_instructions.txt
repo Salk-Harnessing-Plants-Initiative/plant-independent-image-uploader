@@ -1,0 +1,5 @@
+Step 1:
+Put your images in the unprocessed folder inside magic_uploader 
+Step 2:
+Copy and paste this into the terminal:
+pipenv run python /home/rootstrapping/Documents/plant-independent-image-uploader-1.1.0/aws_s3_desktop_uploader/desktop_uploader.py
