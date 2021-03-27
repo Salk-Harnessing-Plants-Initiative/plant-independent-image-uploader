@@ -40,7 +40,7 @@ pipenv run python aws_s3_desktop_uploader/desktop_uploader.py
 
 ## Linux example
 ```
-apt-get install run-one
+sudo apt-get install run-one
 ```
 "Ensure exactly one instance of `main.py` is running, and check every 5 minutes":
 ```
