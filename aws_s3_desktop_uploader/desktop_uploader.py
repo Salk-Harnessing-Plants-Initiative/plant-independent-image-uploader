@@ -188,7 +188,7 @@ def process(file_path, s3_client, bucket, bucket_dir, done_dir, error_dir, unpro
             filename = os.path.basename(file_path)
             potential = filename.split(".")[-2]
             if not qr_code_valid(lambda_arn, lambda_client, potential, upload_device_id):
-                raise Exception("Invalid filename {} doesn't have a QR code or filename that matches a container_id".format(plant_or_container_id))
+                raise Exception("Invalid filename {} doesn't have a QR code or filename that matches a container_id".format(filename))
 
 
         # Actual upload
