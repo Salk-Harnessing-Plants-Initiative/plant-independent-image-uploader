@@ -1,5 +1,4 @@
 # plant-independent-image-uploader
-Fork of https://github.com/Salk-Harnessing-Plants-Initiative/aws-s3-desktop-uploader specific to HPI lab use
 
 * On startup, detects all files in the `unprocessed` directory (and recursive subdirectories),
 and for each file, uploads it to S3. Moves it to the `done` directory upon success, `error` directory upon failure
